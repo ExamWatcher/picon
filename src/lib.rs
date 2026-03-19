@@ -14,15 +14,16 @@ pub const IS_OS_SUPPORTED: bool = cfg!(any(
     target_os = "netbsd"
 ));
 
-/// An Iced image or SVG handle of a process icon.
+/// Raw RGBA pixel data of a process icon.
 #[derive(Clone)]
-pub enum IconHandle {
-    Image(iced::widget::image::Handle),
-    Svg(iced::widget::svg::Handle),
+pub struct IconData {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
 }
 
-/// Returns the process icon given the path to an executable (Windows and mcOS) or its name (other platforms).
-pub fn get_icon<S: Into<String>>(info: S) -> Option<IconHandle> {
+/// Returns the process icon given the path to an executable (Windows and macOS) or its name (other platforms).
+pub fn get_icon<S: Into<String>>(info: S) -> Option<IconData> {
     platform::get_icon(info.into())
 }
 

@@ -1,4 +1,4 @@
-use crate::IconHandle;
+use crate::IconData;
 
 use std::ffi::OsStr;
 use std::mem::{self, MaybeUninit};
@@ -45,13 +45,11 @@ impl Drop for OwnedIcon {
 }
 
 /// Extract an icon from an executable using the Windows Shell API.
-pub(super) fn get_icon(exe_path: &str) -> Option<IconHandle> {
+pub(super) fn get_icon(exe_path: &str) -> Option<IconData> {
     let path = Path::new(exe_path);
     let hicon = unsafe { get_hicon(path) }?;
-    let (w, h, rgba) = unsafe { hicon_to_rgba(hicon) }?;
-    Some(IconHandle::Image(iced::widget::image::Handle::from_rgba(
-        w, h, rgba,
-    )))
+    let (width, height, rgba) = unsafe { hicon_to_rgba(hicon) }?;
+    Some(IconData { width, height, rgba })
 }
 
 unsafe fn get_hicon(file_path: &Path) -> Option<HICON> {

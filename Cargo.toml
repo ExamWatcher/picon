@@ -13,7 +13,7 @@ include = ["src/**/*", "LICENSE", "README.md", "CHANGELOG.md"]
 
 
 [dependencies]
-iced = { version = "0.14", features = ["image", "svg"] }
+image = { version = "0.25", default-features = false, features = ["png", "tiff"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2-foundation = { version = "0.3", default-features = false}

@@ -1,9 +1,9 @@
 mod hicon;
 mod manifest;
 
-use crate::IconHandle;
+use crate::IconData;
 
-pub(crate) fn get_icon(path: String) -> Option<IconHandle> {
+pub(crate) fn get_icon(path: String) -> Option<IconData> {
     // Try manifest-based extraction first (works for UWP/MSIX packaged apps)
     if let Some(handle) = manifest::get_icon(&path) {
         return Some(handle);

@@ -1,4 +1,4 @@
-use crate::IconHandle;
+use crate::IconData;
 use quick_xml::Reader;
 use quick_xml::events::Event;
 use std::fs;
@@ -7,14 +7,14 @@ use std::path::{Path, PathBuf};
 const TARGET_PX: u32 = 64;
 
 /// Try to extract an icon via AppxManifest.xml (works for UWP and MSIX-packaged apps).
-pub(super) fn get_icon(exe_path: &str) -> Option<IconHandle> {
+pub(super) fn get_icon(exe_path: &str) -> Option<IconData> {
     let manifest_dir = find_manifest_dir(exe_path)?;
 
     let icon_path = resolve_from_manifest(&manifest_dir)?;
 
-    Some(IconHandle::Image(iced::widget::image::Handle::from_path(
-        icon_path,
-    )))
+    let img = image::open(&icon_path).ok()?.into_rgba8();
+    let (width, height) = img.dimensions();
+    Some(IconData { width, height, rgba: img.into_raw() })
 }
 
 /// Walk up from the exe's directory to the filesystem root looking for AppxManifest.xml.

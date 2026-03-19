@@ -1,12 +1,14 @@
-use crate::IconHandle;
+use crate::IconData;
 use objc2_app_kit::{NSCompositingOperation, NSImage, NSWorkspace};
 use objc2_foundation::{NSPoint, NSRect, NSSize, NSString};
 
-pub(crate) fn get_icon(path: String) -> Option<IconHandle> {
+pub(crate) fn get_icon(path: String) -> Option<IconData> {
     let path = find_app_bundle_path(&path).unwrap_or(path);
 
-    get_icon_tiff_bytes(&path)
-        .map(|b| IconHandle::Image(iced::widget::image::Handle::from_bytes(b)))
+    let tiff_bytes = get_icon_tiff_bytes(&path)?;
+    let img = image::load_from_memory(&tiff_bytes).ok()?.into_rgba8();
+    let (width, height) = img.dimensions();
+    Some(IconData { width, height, rgba: img.into_raw() })
 }
 
 fn find_app_bundle_path(exe_path: &str) -> Option<String> {
