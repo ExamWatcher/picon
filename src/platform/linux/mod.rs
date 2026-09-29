@@ -1,9 +1,27 @@
 use crate::IconData;
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, Mutex};
+
+/// Upper bound on cached desktop-file lookups; the key space (process names)
+/// is unbounded over a long monitor session, so the map is cleared and
+/// rebuilt past this size. Eviction only costs a re-scan, never correctness.
+const MAX_CACHED_LOOKUPS: usize = 1024;
+
+/// `Icons::new()` walks every icon theme directory on the system. It is pure
+/// filesystem discovery, so one instance is shared for the process lifetime
+/// instead of re-scanning per icon request (hundreds per icon batch).
+static ICONS: LazyLock<Mutex<icon::Icons>> = LazyLock::new(|| Mutex::new(icon::Icons::new()));
+
+/// Maps process names to the `Icon=` value of their `.desktop` file
+/// (`None` = looked up, no match). Without this, every icon request re-read
+/// every `.desktop` file on the system.
+static DESKTOP_ICON_CACHE: LazyLock<Mutex<HashMap<String, Option<String>>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 pub(crate) fn get_icon(name: String) -> Option<IconData> {
-    let icon_name_opt = find_icon_name(&name);
+    let icon_name_opt = cached_icon_name(&name);
     let icon_name = icon_name_opt.unwrap_or(name);
 
     // first check if the icon name is an absolute path to an icon file
@@ -12,9 +30,8 @@ pub(crate) fn get_icon(name: String) -> Option<IconData> {
         return icon_data(icon_path);
     }
 
-    // try to find the icon using the icon crate
-    let icons = icon::Icons::new();
-    let icon_opt = icons.find_default_icon(&icon_name, 64, 1);
+    // try to find the icon using the shared icon-theme index
+    let icon_opt = ICONS.lock().ok()?.find_default_icon(&icon_name, 64, 1);
 
     if let Some(icon) = icon_opt {
         let path = icon.path();
@@ -22,6 +39,24 @@ pub(crate) fn get_icon(name: String) -> Option<IconData> {
     }
 
     None
+}
+
+/// Memoized [`find_icon_name`]: the `.desktop` scan runs once per unique
+/// process name instead of once per icon request.
+fn cached_icon_name(name: &str) -> Option<String> {
+    if let Ok(cache) = DESKTOP_ICON_CACHE.lock()
+        && let Some(cached) = cache.get(name)
+    {
+        return cached.clone();
+    }
+    let found = find_icon_name(name);
+    if let Ok(mut cache) = DESKTOP_ICON_CACHE.lock() {
+        if cache.len() >= MAX_CACHED_LOOKUPS && !cache.contains_key(name) {
+            cache.clear();
+        }
+        cache.insert(name.to_string(), found.clone());
+    }
+    found
 }
 
 fn find_icon_name(name: &str) -> Option<String> {
@@ -90,7 +125,11 @@ fn icon_data(path: &Path) -> Option<IconData> {
     if path.extension().and_then(|e| e.to_str()) == Some("png") {
         let img = image::open(path).ok()?.into_rgba8();
         let (width, height) = img.dimensions();
-        Some(IconData { width, height, rgba: img.into_raw() })
+        Some(IconData {
+            width,
+            height,
+            rgba: img.into_raw(),
+        })
     } else {
         None
     }

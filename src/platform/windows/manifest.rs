@@ -134,7 +134,9 @@ fn find_best_variant(icon_path: &Path, base_size: Option<u32>) -> Option<PathBuf
         if !name.starts_with(stem) || !name.ends_with(&suffix) {
             continue;
         }
-        if exclude.iter().any(|e| name.to_lowercase().contains(e)) {
+        // Lowercase once per file: the old code reallocated it per pattern.
+        let lower = name.to_lowercase();
+        if exclude.iter().any(|e| lower.contains(e)) {
             continue;
         }
 

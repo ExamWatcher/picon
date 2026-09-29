@@ -138,12 +138,21 @@ unsafe fn hicon_to_rgba(icon: HICON) -> Option<(u32, u32, Vec<u8>)> {
         return None;
     }
 
-    // BGRA -> RGBA
+    // BGRA -> RGBA in place (swap R and B channels), then reinterpret the
+    // same allocation as bytes. The old code collected a second `Vec<u8>`,
+    // doubling peak memory for large (256x256) icons.
+    for pixel in buf.iter_mut() {
+        let bgra = *pixel;
+        *pixel = (bgra & 0xFF00_FF00) | ((bgra & 0x00FF_0000) >> 16) | ((bgra & 0x0000_00FF) << 16);
+    }
     let byte_len = buf.len().checked_mul(mem::size_of::<u32>())?;
-    let rgba = unsafe { std::slice::from_raw_parts(buf.as_ptr().cast::<u8>(), byte_len) }
-        .chunks_exact(4)
-        .flat_map(|px| [px[2], px[1], px[0], px[3]])
-        .collect();
+    let byte_cap = buf.capacity().checked_mul(mem::size_of::<u32>())?;
+    let bytes = buf.as_mut_ptr().cast::<u8>();
+    std::mem::forget(buf);
+    // SAFETY: `buf` was a `Vec<u32>` of length/capacity `byte_len`/`byte_cap`
+    // bytes; `u32` has no padding or invalid bit patterns, and ownership was
+    // released via `forget`, so the new `Vec<u8>` is the sole owner.
+    let rgba = unsafe { Vec::from_raw_parts(bytes, byte_len, byte_cap) };
 
     Some((width, height, rgba))
 }
